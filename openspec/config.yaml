@@ -1,0 +1,34 @@
+schema: spec-driven
+
+context: |
+  Principe directeur : L'outil assiste. L'artisan décide. Validation humaine toujours requise, aucune correction silencieuse.
+
+  Domaine : Assistant vocal de chantier BTP. Les artisans dictent en français naturel (en conditions bruité), le système transcrit, permet de relire, corriger, puis génère un document par pièce.
+
+  Phase actuelle : MVP — "Parler → entendre → valider". Scope : dictée vocale, transcription, relecture TTS par pièce, corrections simples, génération document HTML/PDF. Hors scope MVP : calculs, tarifs, structuration automatique, dévis.
+
+  Stack :
+    Frontend       — Next.js 15 (PWA mobile-first), UI uniquement
+    Orchestration  — n8n (self-hosted sur Railway)
+    Base de données— Supabase PostgreSQL + RLS (multi-tenant)
+    Auth           — Supabase Auth (magic link)
+    STT            — OpenAI Whisper (whisper-1)
+    TTS            — OpenAI TTS (tts-1)
+    LLM (V1+)     — OpenAI GPT-4o via node n8n natif
+    Docs (MVP)     — HTML structuré + export PDF navigateur
+
+  Conventions architecturales :
+    - Reads (liste chantiers, pièces, transcriptions) : frontend lit Supabase directement via SDK. Zéro passage par n8n.
+    - Writes / traitements (audio, corrections, structuration) : frontend POST webhook vers n8n. n8n orchestre les appels API et la persistance.
+    - Toutes les clés OpenAI (Whisper, TTS, GPT-4o) partagent la même clé API.
+    - Données relationnelles : organisation → chantier → pièce → transcriptions/corrections.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
