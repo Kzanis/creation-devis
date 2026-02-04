@@ -1,0 +1,19 @@
+# Secrets / Environnement
+.env
+.env.*
+.env.local
+
+# Node.js
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build
+dist/
+build/

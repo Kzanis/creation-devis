@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__search_nodes",
+      "mcp__MCP_DOCKER__get_node_documentation",
+      "mcp__MCP_DOCKER__get_node_essentials",
+      "Bash(git --version:*)"
+    ]
+  }
+}
