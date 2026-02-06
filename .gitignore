@@ -1,7 +1,8 @@
 # Secrets / Environnement
 .env
-.env.*
 .env.local
+.env.*.local
+!.env.example
 
 # Node.js
 node_modules/
@@ -13,6 +14,10 @@ node_modules/
 # OS
 Thumbs.db
 .DS_Store
+
+# Next.js
+.next/
+tsconfig.tsbuildinfo
 
 # Build
 dist/

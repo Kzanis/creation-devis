@@ -16,6 +16,7 @@ Validation humaine toujours requise. Aucune action automatique, aucune correctio
 | Orchestration backend | n8n (self-hosted sur Railway) |
 | Base de données | Supabase — PostgreSQL + RLS |
 | Authentification | Supabase Auth — email/mot de passe ou magic link |
+| Stockage fichiers (photos) | Supabase Storage — buckets par chantier |
 | Speech-to-Text | OpenAI Whisper (`whisper-1`) |
 | Text-to-Speech | OpenAI TTS (`tts-1`) |
 | LLM (V1+) | OpenAI GPT-4o via node n8n natif |
@@ -123,7 +124,46 @@ Supabase node → Create row
 Respond to Webhook → { success: true }
 ```
 
-### Workflow 4 — Structuration automatique (V1+)
+### Workflow 4 — Upload photo terrain (MVP)
+
+```
+Webhook (POST)
+  ├─ Binary Property activé → fichier image (JPEG/PNG)
+  └─ Body JSON → { piece_id, chantier_id, user_id, description? }
+       │
+       ▼
+Supabase Storage → Upload
+  └─ bucket: photos-chantier/{chantier_id}/{piece_id}/
+  └─ filename: {timestamp}.jpg
+       │
+       ▼
+Supabase node → Create row
+  └─ table: photos — piece_id, chantier_id, user_id, storage_url, description, created_at
+       │
+       ▼
+Respond to Webhook → { url, piece_id, saved: true }
+```
+
+### Workflow 5 — Sync CRM Airtable (V1)
+
+```
+Trigger: Supabase → Webhook sur insert/update (chantiers, pieces, transcriptions)
+       │
+       ▼
+Airtable node → Create / Update record
+  └─ Base: [configurable par artisan]
+  └─ Tables mappées :
+       - Chantiers → table "Chantiers"
+       - Pièces → table "Pièces"
+       - Transcriptions → table "Notes vocales"
+       - Photos → table "Photos" (avec URL Supabase Storage)
+       │
+       ▼
+Supabase node → Update crm_sync_log
+  └─ status: success/error, synced_at
+```
+
+### Workflow 6 — Structuration automatique (V1+)
 
 ```
 Webhook (POST)
@@ -174,6 +214,7 @@ Relationnel : organisation → chantier → pièce → données.
 | `pieces` | Pièces d'un chantier (chambre 1, cuisine, SDB…) |
 | `transcriptions` | Transcriptions brutes par pièce |
 | `corrections` | Corrections vocales par pièce |
+| `photos` | Photos terrain liées à un chantier et une pièce (URL Supabase Storage) |
 
 ### Tables V1+
 
@@ -182,6 +223,7 @@ Relationnel : organisation → chantier → pièce → données.
 | `surfaces` | Surfaces calculées depuis les dimensions (V1) |
 | `operations` | Bibliothèque d'opérations métier (V2) |
 | `prix` | Grille de prix paramétrable par artisan (V2) |
+| `crm_sync_log` | Journal de synchronisation avec le CRM externe (V1) |
 
 Isolation par organisation via **Row Level Security (RLS)** sur toutes les tables.
 

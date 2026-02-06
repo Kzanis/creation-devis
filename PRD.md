@@ -78,9 +78,36 @@ Le MVP doit prouver l’usage réel, pas la performance technique.
 ### ✍️ Corrections vocales simples
 - Une correction = une phrase
 - Exemples :
-  - “Non, la hauteur c’est 248”
-  - “Ajoute une couche”
+  - "Non, la hauteur c'est 248"
+  - "Ajoute une couche"
 - Pas de logique complexe
+
+### 📸 Prise de photos terrain
+- Capture de photos depuis l'application (acces camera PWA)
+- Photos liees a un **chantier** et a un **dossier**
+- **Upload automatique dans Google Drive** (1 dossier Drive par dossier chantier)
+- Lien du dossier Drive stocke automatiquement dans Airtable (champ "Photo")
+- Visualisation des photos prises dans l'interface avec indicateurs d'upload
+- Pas de traitement IA sur les photos au MVP (stockage brut uniquement)
+
+### 📄 Transcriptions dans Google Docs
+- **1 Google Doc par dossier** : toutes les dictees s'ajoutent au meme document
+- Chaque transcription est horodatee dans le doc
+- Lien du Google Doc stocke automatiquement dans Airtable (champ "Description / Releve")
+- Creation automatique du doc et du dossier Drive si inexistants
+- Mode degrade : sans dossier selectionne, la transcription fonctionne sans Google Docs
+
+### 📁 Dossier par chantier
+- Ecran de **selection / creation de chantier** au lancement
+- Chaque chantier = un dossier qui centralise :
+  - les transcriptions vocales (Google Docs)
+  - les photos (Google Drive)
+  - les corrections
+  - les futurs devis
+- **Integration Airtable** : chaque dossier = un enregistrement avec liens Google automatiques
+- L'artisan **choisit le dossier chantier** avant de commencer a travailler
+- Liste des chantiers en cours avec acces rapide
+- Tout passe par **n8n** : les cles Google restent sur le serveur, jamais cote client
 
 ---
 
@@ -113,13 +140,21 @@ Transformer la parole validée en **données chantier structurées**, fiables et
 - Découpage logique :
   - pièce → murs → surfaces
 - Héritage de contexte
-  - ex : “pareil que l’autre mur”
+  - ex : "pareil que l'autre mur"
 - Marquage des données :
   - confirmé
   - à vérifier
-- Détection d’incohérences simples
+- Détection d'incohérences simples
 - Correction vocale élargie
 - Restitution enrichie (toujours en brouillon)
+
+### 🔗 Intégration CRM (Airtable ou équivalent)
+- Synchronisation bidirectionnelle des dossiers chantier avec un CRM externe (Airtable recommandé)
+- Chaque chantier créé dans l'app → automatiquement créé dans Airtable
+- Les données structurées (pièces, dimensions, opérations) remontent dans Airtable
+- Les photos prises sont référencées dans le CRM
+- L'artisan peut gérer ses clients / chantiers depuis Airtable ou depuis l'app
+- Workflow n8n dédié pour la synchronisation (n8n a un connecteur Airtable natif)
 
 ### Exclus
 - Tarifs
