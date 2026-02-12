@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
             },
             body: JSON.stringify({
               fields: {
-                "Devis / Pre-devis": driveUrl,
+                "Devis / Pré-devis": driveUrl,
               },
             }),
           }

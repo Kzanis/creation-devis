@@ -13,7 +13,7 @@ const STATUT_LABELS: Record<string, { label: string; color: string }> = {
 
 function getStatut(d: Dossier): string {
   if (d.devis) return "valide";
-  if (d.description || d.photo) return "en_cours";
+  if (d.description || d.photos_count > 0) return "en_cours";
   return "brouillon";
 }
 
@@ -138,6 +138,32 @@ export default function DossiersPage() {
                         <p className="truncate text-xs text-[var(--color-text-muted)]">
                           {d.client}{d.nom ? ` — ${d.nom}` : ""}
                         </p>
+                      </div>
+                      {/* Icones photos + devis */}
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {d.photos_count > 0 && (
+                          <span
+                            className="flex h-10 items-center gap-1 rounded-lg bg-[var(--color-primary)]/15 px-2 text-[var(--color-primary)]"
+                            title={`${d.photos_count} photo${d.photos_count > 1 ? "s" : ""}`}
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                            </svg>
+                            <span className="text-xs font-semibold">{d.photos_count}</span>
+                          </span>
+                        )}
+                        {d.devis && (
+                          <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(d.devis, "_blank"); }}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-success)]/15 text-[var(--color-success)] transition-colors hover:bg-[var(--color-success)]/30 active:scale-95"
+                            title="Ouvrir le devis"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                       <svg className="h-4 w-4 flex-shrink-0 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />

@@ -50,16 +50,25 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
 
     // Transformer les records en format simple
+    interface AirtableAttachment {
+      url?: string;
+      thumbnails?: { large?: { url?: string } };
+    }
     const dossiers = data.records.map(
-      (r: { id: string; fields: Record<string, string> }) => ({
-        id: r.id,
-        numero: r.fields["Numéro de dossier"] || "",
-        nom: r.fields["Nom du dossier"] || "",
-        client: r.fields["Client"] || "",
-        photo: r.fields["Photo"] || "",
-        devis: r.fields["Devis / Pré-devis"] || "",
-        description: r.fields["Description / Relevé"] || "",
-      })
+      (r: { id: string; fields: Record<string, unknown> }) => {
+        const photosChantier = (r.fields["Photos Chantier"] || []) as AirtableAttachment[];
+        const firstPhoto = photosChantier[0];
+        return {
+          id: r.id,
+          numero: (r.fields["Numéro de dossier"] as string) || "",
+          nom: (r.fields["Nom du dossier"] as string) || "",
+          client: (r.fields["Client"] as string) || "",
+          photo: firstPhoto?.thumbnails?.large?.url || firstPhoto?.url || "",
+          photos_count: photosChantier.length,
+          devis: (r.fields["Devis / Pré-devis"] as string) || "",
+          description: (r.fields["Description / Relevé"] as string) || "",
+        };
+      }
     );
 
     return NextResponse.json({ dossiers });
@@ -133,7 +142,8 @@ export async function POST(req: NextRequest) {
         numero: record.fields["Numéro de dossier"] || "",
         nom: record.fields["Nom du dossier"] || "",
         client: record.fields["Client"] || "",
-        photo: record.fields["Photo"] || "",
+        photo: "",
+        photos_count: 0,
         devis: record.fields["Devis / Pré-devis"] || "",
         description: record.fields["Description / Relevé"] || "",
       },
