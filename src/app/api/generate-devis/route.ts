@@ -105,7 +105,15 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const bordereauTexte = bordereau
+    // Separer les prestations communes (ajoutees automatiquement) du bordereau IA
+    const prestationsCommunes = bordereau.filter(
+      (b: { categorie: string }) => b.categorie === "Prestations Communes"
+    );
+    const bordereauIA = bordereau.filter(
+      (b: { categorie: string }) => b.categorie !== "Prestations Communes"
+    );
+
+    const bordereauTexte = bordereauIA
       .map(
         (b: { intitule: string; unite: string; prix_ht: number; categorie: string }) =>
           `- ${b.intitule} | ${b.unite} | ${b.prix_ht}€ HT | ${b.categorie}`
@@ -221,6 +229,33 @@ Genere le pre-devis en JSON.`;
       piece.sous_total_ht = Math.round(sousTotalPiece * 100) / 100;
       totalGeneral += piece.sous_total_ht;
     }
+
+    // ── 5) Ajouter les prestations communes (1 ligne chacune, qte=1) ──
+    if (prestationsCommunes.length > 0) {
+      let sousTotalCommunes = 0;
+      const lignesCommunes = prestationsCommunes.map(
+        (b: { intitule: string; unite: string; prix_ht: number }) => {
+          const total = Math.round(b.prix_ht * 100) / 100;
+          sousTotalCommunes += total;
+          return {
+            intitule: b.intitule,
+            unite: b.unite,
+            quantite: 1,
+            prix_unitaire_ht: b.prix_ht,
+            total_ht: total,
+          };
+        }
+      );
+      sousTotalCommunes = Math.round(sousTotalCommunes * 100) / 100;
+      totalGeneral += sousTotalCommunes;
+
+      devis.pieces.push({
+        nom: "Prestations communes",
+        lignes: lignesCommunes,
+        sous_total_ht: sousTotalCommunes,
+      });
+    }
+
     devis.total_ht = Math.round(totalGeneral * 100) / 100;
 
     return NextResponse.json({
