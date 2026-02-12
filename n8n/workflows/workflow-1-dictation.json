@@ -1,0 +1,172 @@
+{
+  "name": "Workflow 1 — Dictation",
+  "active": true,
+  "nodes": [
+    {
+      "id": "webhook-receive",
+      "name": "Webhook — Réception audio",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/dictation",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "if-token",
+      "name": "IF — Vérifie X-API-Token",
+      "type": "n8n-nodes-base.if",
+      "position": [250, 0],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $input.item.json.headers['x-api-token'] }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $env.WEBHOOK_TOKEN }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "whisper-request",
+      "name": "HTTP Request — Whisper Transcription",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "headers": {
+          "Authorization": "Bearer {{ $env.OPENAI_API_KEY }}"
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "options": {
+          "multipartFormData": {
+            "values": [
+              {
+                "name": "file",
+                "value": "={{ $input.item.binary.audio }}"
+              },
+              {
+                "name": "model",
+                "value": "whisper-1"
+              },
+              {
+                "name": "language",
+                "value": "fr"
+              }
+            ]
+          }
+        },
+        "requestOptionsType": "multipart"
+      }
+    },
+    {
+      "id": "supabase-insert",
+      "name": "Supabase — Créer transcription",
+      "type": "n8n-nodes-base.supabase",
+      "position": [750, 0],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "transcriptions",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldPairs": [
+            {
+              "fieldId": "piece_id",
+              "fieldValue": "={{ $('Webhook — Réception audio').item.json.piece_id }}"
+            },
+            {
+              "fieldId": "chantier_id",
+              "fieldValue": "={{ $('Webhook — Réception audio').item.json.chantier_id }}"
+            },
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Webhook — Réception audio').item.json.user_id }}"
+            },
+            {
+              "fieldId": "text",
+              "fieldValue": "={{ $('HTTP Request — Whisper Transcription').item.json.text }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "webhook-respond-ok",
+      "name": "Respond to Webhook — Succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 0],
+      "parameters": {
+        "statusCode": 200,
+        "responseData": "json",
+        "responseBody": {
+          "text": "={{ $('HTTP Request — Whisper Transcription').item.json.text }}",
+          "piece_id": "={{ $('Webhook — Réception audio').item.json.piece_id }}",
+          "saved": true
+        }
+      }
+    },
+    {
+      "id": "webhook-respond-reject",
+      "name": "Respond to Webhook — Token invalide",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [250, 200],
+      "parameters": {
+        "statusCode": 401,
+        "responseData": "json",
+        "responseBody": {
+          "error": "Token d'authentification invalide ou manquant."
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook-receive": {
+      "main": [
+        [{ "node": "if-token", "type": "main", "index": 0 }]
+      ]
+    },
+    "if-token": {
+      "main": [
+        [{ "node": "whisper-request", "type": "main", "index": 0 }],
+        [{ "node": "webhook-respond-reject", "type": "main", "index": 0 }]
+      ]
+    },
+    "whisper-request": {
+      "main": [
+        [{ "node": "supabase-insert", "type": "main", "index": 0 }]
+      ]
+    },
+    "supabase-insert": {
+      "main": [
+        [{ "node": "webhook-respond-ok", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "notes": [
+    "Déploiement : déjà déployé via API REST (id=9Hbx7TOo6BZCnvEI). Ce fichier est la référence locale.",
+    "Variables d'environnement requises côté n8n (Railway) : OPENAI_API_KEY, WEBHOOK_TOKEN.",
+    "Le webhook est exposé sur /webhook/v1/dictation — préfixe versionnné.",
+    "Binary Property 'audio' : le champ multipart envoyé par le frontend doit s'appeler exactement 'audio'.",
+    "Le noeud IF vérifie le header X-API-Token avant tout traitement.",
+    "Aucune colonne audio n'existe en base — le binaire n'est jamais persisté."
+  ]
+}

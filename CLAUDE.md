@@ -2,91 +2,122 @@
 
 ---
 
-## Aperçu de l'objectif du projet
+## Apercu du projet
 
-Créer un assistant vocal de chantier destiné aux artisans BTP, capable d'écouter une description orale en conditions réelles (chantier, camion), de la transcrire fidèlement, de permettre une relecture et correction vocale, puis de générer un document structuré par pièce.
+Creer un assistant vocal de chantier destine aux artisans BTP, vendu en SaaS/white-label. L'artisan dicte sur le terrain (audio), prend des photos et videos, tout est transcrit, stocke dans Airtable et Google Drive, et accessible au patron pour validation.
 
-Principe directeur : **L'outil assiste. L'artisan décide.** Validation humaine toujours requise, aucune action automatique, aucune correction silencieuse.
+Principe directeur : **L'outil assiste. L'artisan decide.** Validation humaine toujours requise, aucune action automatique, aucune correction silencieuse.
 
-Phase actuelle : **MVP** — "Parler → entendre → valider".
+Phase actuelle : **MVP** — "Capturer le terrain en 1 tap".
 
 ---
 
-## Aperçu de l'architecture globale
+## Architecture globale
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Next.js 15  —  PWA mobile                      │
-│      UI uniquement                              │
-│      Auth + lecture données : Supabase SDK      │
-│      Traitements : appels webhooks vers n8n     │
-└──────────┬───────────────────┬─────────────────┘
-           │  POST webhooks    │  Reads (direct SDK)
-           ▼                   ▼
-┌─────────────────┐   ┌─────────────────────────┐
-│  n8n            │   │  Supabase               │
-│  (Railway)      │   │  Auth (magic link)      │
-│                 │   │  PostgreSQL + RLS       │
-│  Workflow 1     │   │                         │
-│  Dictation      │   └─────────────────────────┘
-│  Workflow 2     │
-│  Relecture TTS  │
-│  Workflow 3     │
-│  Correction     │
-└────────┬────────┘
-         │  HTTP calls
-         ▼
-┌─────────────────────────────────┐
-│  OpenAI APIs                    │
-│  • Whisper  (via HTTP Request)  │
-│  • TTS      (via HTTP Request)  │
-│  • GPT-4o   (via OpenAI node)   │
-└─────────────────────────────────┘
+Next.js 15 (PWA mobile-first)
+  ├─ Reads : Airtable REST API (via API route)
+  └─ Writes : POST webhooks → n8n → Airtable + Drive + OpenAI
 ```
 
-- **Reads** (liste chantiers, pièces, transcriptions) : frontend lit Supabase directement via SDK.
-- **Writes / Traitements** (audio, corrections) : frontend POST webhook vers n8n, qui orchestre les API et la persistance.
+- **Frontend** : Next.js 15, Tailwind CSS 4, PWA. UN seul codebase avec theming par client_id.
+- **Backend** : n8n (creatorweb.fr). UN jeu de workflows, routing par client_id.
+- **Data** : Airtable (1 base par client). Isolation totale des donnees.
+- **Fichiers** : Google Drive (1 dossier par client). Photos + videos.
+- **Documents** : Google Docs (1 doc par dossier). Transcriptions.
+- **STT** : OpenAI Whisper. Feedback immediat via Web Speech API navigateur.
+- **TTS** : OpenAI TTS (relecture vocale).
+
+Pas de Supabase. Pas de base de donnees SQL. Airtable = source de verite.
 
 ---
 
 ## Style visuel
 
-- Interface claire et minimaliste.
-- Pas de mode sombre pour le MVP.
+- Theme sombre par defaut (dark mode)
+- Couleurs personnalisables par client (CSS custom properties)
+- Zones de tap XXL (min 64px) — usage terrain avec gants
+- Interface claire et minimaliste
 
 ---
 
 ## Contraintes et Politiques
 
-- NE JAMAIS exposer les clés API au client. Toutes les clés restent côté serveur (n8n / variables d'environnement Railway).
+- NE JAMAIS exposer les cles API au client. Toutes les cles restent cote serveur (n8n / variables d'environnement).
+- Chaque client = base Airtable separee. Jamais d'acces croise.
+- Audio jamais stocke. Seul le texte transcrit est persiste.
+- Photos et videos stockees dans Google Drive, lien dans Airtable.
 
 ---
 
-## Dépendances
+## Dependances
 
-- Préférer les composants existants plutôt que d'ajouter de nouvelles bibliothèques UI.
+- Preferer les composants existants plutot que d'ajouter de nouvelles bibliotheques UI.
+- `next` 15, `react` 19, `tailwindcss` 4 — stack minimale.
 
 ---
 
-## Tests — Interface graphique
+## Tests
 
-À la fin de chaque développement qui implique l'interface graphique, tester avec `playwright-skill` : l'interface doit être responsive, fonctionnelle et répondre au besoin développé.
+A la fin de chaque developpement qui implique l'interface graphique, tester visuellement : l'interface doit etre responsive, fonctionnelle et adaptee au mobile (gros boutons, zones de tap XXL).
 
 ---
 
 ## Context7
 
-Utiliser automatiquement les outils MCP Context7 (résolution d'identifiant de bibliothèque + récupération de documentation) à chaque fois qu'il s'agit de génération de code, d'étapes de configuration ou d'installation, ou de documentation de bibliothèque/API. Pas besoin de le demander explicitement.
+Utiliser automatiquement les outils MCP Context7 (resolution d'identifiant de bibliotheque + recuperation de documentation) a chaque fois qu'il s'agit de generation de code, d'etapes de configuration ou d'installation, ou de documentation de bibliotheque/API.
 
 ---
 
-## Specs OpenSpec — Langue
+## Commandes de developpement
 
-Toutes les spécifications doivent être rédigées en français, y compris les specs OpenSpec (sections Purpose et Scenarios). Seuls les titres de Requirements doivent rester en anglais avec les mots-clés SHALL/MUST pour la validation OpenSpec.
+```bash
+# Installer dependances
+npm install
+
+# Lancer le dev server
+npm run dev
+
+# Build production
+npm run build
+
+# Lancer en production
+npm run start
+```
+
+---
+
+## Structure du projet
+
+```
+src/
+  app/
+    layout.tsx          # Root layout + theming provider
+    page.tsx            # Page d'accueil (gros bouton micro)
+    dossiers/
+      page.tsx          # Liste des dossiers
+    api/
+      airtable/         # API routes pour lire Airtable
+      dictation/        # Proxy webhook dictation
+      media-upload/     # Proxy webhook photo/video
+  components/
+    AudioRecorder.tsx   # Enregistrement audio + Web Speech API
+    PhotoCapture.tsx    # Capture photo camera
+    VideoCapture.tsx    # Capture video camera (max 60s)
+    DossierSelector.tsx # Selection/creation de dossier
+    FeedbackButtons.tsx # Pouce haut/bas sur transcription
+    ThemeProvider.tsx   # Injection CSS custom properties
+  lib/
+    webhookClient.ts    # Helper fetch vers n8n (token, client_id)
+    clientConfig.ts     # Chargement config client JSON
+  config/
+    clients/            # 1 JSON par client (couleurs, base_id, etc.)
+```
 
 ---
 
 ## Documentation
 
-- Roadmap produit & fonctionnalités : `@PRD.md`
-- Architecture technique & stack : `@ARCHITECTURE.md`
+- Roadmap produit & fonctionnalites : `PRD.md`
+- Architecture technique & stack : `ARCHITECTURE.md`
+- Analyse stack technique : `TECH_STACK_REPORT.md`

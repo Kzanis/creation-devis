@@ -7,6 +7,27 @@
  * - uploadPhotoToDrive : WF2 — Photo Upload Google Drive
  */
 
+import { getClientConfig, getClientId } from "@/lib/clientConfig";
+
+// ── Headers communs ──
+
+function getHeaders(): HeadersInit {
+  const config = getClientConfig();
+  const apiToken = config.api_token || process.env.NEXT_PUBLIC_WEBHOOK_API_TOKEN;
+  const headers: HeadersInit = {
+    "X-Client-ID": getClientId(),
+  };
+  if (apiToken) {
+    headers["X-API-Token"] = apiToken;
+  }
+  return headers;
+}
+
+function getWebhookBase(): string {
+  const config = getClientConfig();
+  return config.n8n_base_url || process.env.NEXT_PUBLIC_WEBHOOK_N8N_BASE_URL || "https://creatorweb.fr/webhook";
+}
+
 // ── Types Dictation ──
 
 export interface DictationResponse {
@@ -19,47 +40,20 @@ export interface DictationResponse {
 
 export interface DictationParams {
   audioBlob: Blob;
-  pieceId: string;
-  chantierId: string;
-  userId: string;
-  dossierId?: string;
-  dossierNumero?: string;
-  dossierClient?: string;
 }
 
 export async function sendAudioForTranscription({
   audioBlob,
-  pieceId,
-  chantierId,
-  userId,
-  dossierId,
-  dossierNumero,
-  dossierClient,
 }: DictationParams): Promise<DictationResponse> {
-  const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_N8N_DICTATION_URL;
-  const apiToken = process.env.NEXT_PUBLIC_WEBHOOK_API_TOKEN;
-
-  if (!webhookUrl) {
-    throw new Error(
-      "Variable d'environnement manquante : NEXT_PUBLIC_WEBHOOK_N8N_DICTATION_URL"
-    );
-  }
+  const webhookUrl =
+    process.env.NEXT_PUBLIC_WEBHOOK_N8N_DICTATION_URL ||
+    `${getWebhookBase()}/dictation`;
 
   const formData = new FormData();
   formData.append("audio", audioBlob, "audio.webm");
-  formData.append("piece_id", pieceId);
-  formData.append("chantier_id", chantierId);
-  formData.append("user_id", userId);
+  formData.append("client_id", getClientId());
 
-  // Infos dossier pour Google Docs integration
-  if (dossierId) formData.append("dossier_id", dossierId);
-  if (dossierNumero) formData.append("dossier_numero", dossierNumero);
-  if (dossierClient) formData.append("dossier_client", dossierClient);
-
-  const headers: HeadersInit = {};
-  if (apiToken) {
-    headers["X-API-Token"] = apiToken;
-  }
+  const headers = getHeaders();
 
   const response = await fetch(webhookUrl, {
     method: "POST",
@@ -101,25 +95,18 @@ export async function uploadPhotoToDrive({
   dossierNumero,
   dossierClient,
 }: PhotoUploadParams): Promise<PhotoUploadResponse> {
-  const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_N8N_PHOTO_UPLOAD_URL;
-  const apiToken = process.env.NEXT_PUBLIC_WEBHOOK_API_TOKEN;
-
-  if (!webhookUrl) {
-    throw new Error(
-      "Variable d'environnement manquante : NEXT_PUBLIC_WEBHOOK_N8N_PHOTO_UPLOAD_URL"
-    );
-  }
+  const webhookUrl =
+    process.env.NEXT_PUBLIC_WEBHOOK_N8N_PHOTO_UPLOAD_URL ||
+    `${getWebhookBase()}/photo-upload`;
 
   const formData = new FormData();
   formData.append("photo", photoBlob, fileName);
+  formData.append("client_id", getClientId());
   formData.append("dossier_id", dossierId);
   formData.append("dossier_numero", dossierNumero);
   formData.append("dossier_client", dossierClient);
 
-  const headers: HeadersInit = {};
-  if (apiToken) {
-    headers["X-API-Token"] = apiToken;
-  }
+  const headers = getHeaders();
 
   const response = await fetch(webhookUrl, {
     method: "POST",

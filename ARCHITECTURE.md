@@ -2,7 +2,7 @@
 
 ## Principe directeur
 
-> L'outil assiste. L'artisan décide.
+> L'outil assiste. L'artisan decide.
 
 Validation humaine toujours requise. Aucune action automatique, aucune correction silencieuse.
 
@@ -13,61 +13,87 @@ Validation humaine toujours requise. Aucune action automatique, aucune correctio
 | Couche | Technologie |
 |---|---|
 | Frontend | Next.js 15 (PWA mobile-first) |
-| Orchestration backend | n8n (self-hosted sur Railway) |
-| Base de données | Supabase — PostgreSQL + RLS |
-| Authentification | Supabase Auth — email/mot de passe ou magic link |
-| Stockage fichiers (photos) | Supabase Storage — buckets par chantier |
+| Orchestration backend | n8n (self-hosted sur creatorweb.fr) |
+| Base de donnees | Airtable (1 base par client) |
+| Stockage fichiers | Google Drive (1 dossier par client) |
+| Documents structures | Google Docs (1 doc par dossier) |
 | Speech-to-Text | OpenAI Whisper (`whisper-1`) |
 | Text-to-Speech | OpenAI TTS (`tts-1`) |
-| LLM (V1+) | OpenAI GPT-4o via node n8n natif |
-| Génération document (MVP) | HTML structuré + export PDF navigateur |
-| Génération document (V1+) | Google Docs API via workflow n8n |
-
-Tous les appels OpenAI partagent la même clé API (Whisper, TTS, GPT-4o).
+| Feedback temps reel | Web Speech API (navigateur, approximatif) |
+| LLM (V1+) | OpenAI GPT-4o via n8n |
+| Deploiement frontend | Vercel |
 
 ---
 
 ## Architecture globale
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Next.js 15  —  PWA mobile                      │
-│      UI uniquement                              │
-│      Auth + lecture données : Supabase SDK      │
-│      Traitements : appels webhooks vers n8n     │
-└──────────┬───────────────────┬─────────────────┘
-           │  POST webhooks    │  Reads (direct SDK)
-           ▼                   ▼
-┌─────────────────┐   ┌─────────────────────────┐
-│  n8n            │   │  Supabase               │
-│  (Railway)      │   │  Auth (magic link)      │
-│                 │   │  PostgreSQL + RLS       │
-│  Workflow 1 ────┼──▶│                         │
-│  Dictation      │   └─────────────────────────┘
-│                 │
-│  Workflow 2     │
-│  Relecture TTS  │
-│                 │
-│  Workflow 3     │
-│  Correction     │
-│                 │
-│  Workflow 4+    │
-│  Structuration  │
-└────────┬────────┘
+┌─────────────────────────────────────────────────────┐
+│  Next.js 15  —  PWA mobile-first                    │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  Config client (client_id)                   │    │
+│  │  → couleurs, logo, airtable_base_id,        │    │
+│  │    drive_folder_id, api_token                │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│  Reads : Airtable REST API (via API route Next.js)  │
+│  Writes : POST webhooks vers n8n                    │
+└──────────┬────────────────────────┬─────────────────┘
+           │  POST webhooks         │  GET Airtable API
+           ▼                        ▼
+┌─────────────────┐       ┌────────────────────────┐
+│  n8n             │       │  Airtable              │
+│  (creatorweb.fr) │       │  1 base par client     │
+│                  │──────►│                        │
+│  UN jeu de WF    │       │  Tables :              │
+│  pour TOUS les   │       │  - Dossiers            │
+│  clients         │       │  - Transcriptions      │
+│                  │       │  - Corrections         │
+│  Routing par     │       │  - Medias (photos/vid) │
+│  client_id       │       │  - Feedback            │
+└────────┬─────────┘       └────────────────────────┘
+         │
          │  HTTP calls
          ▼
-┌─────────────────────────────────┐
-│  OpenAI APIs                    │
-│  • Whisper  (via HTTP Request)  │
-│  • TTS      (via HTTP Request)  │
-│  • GPT-4o   (via OpenAI node)   │
-└─────────────────────────────────┘
+┌─────────────────────────────────────┐
+│  APIs externes                      │
+│  • OpenAI Whisper  (STT)            │
+│  • OpenAI TTS      (relecture)      │
+│  • Google Drive    (photos/videos)  │
+│  • Google Docs     (transcriptions) │
+│  • Email SMTP      (notif patron)   │
+└─────────────────────────────────────┘
 ```
 
-### Séparation reads / writes
+---
 
-- **Reads** (lister chantiers, pièces, transcriptions) : le frontend lit Supabase directement via le SDK. Zéro latence n8n.
-- **Writes / Traitements** (envoyer audio, corriger, structurer) : le frontend appelle un webhook n8n. n8n orchestre les appels API et la persistance.
+## Isolation des donnees — Architecture multi-tenant
+
+### Principe : isolation des DONNEES, pas du CODE
+
+```
+UN SEUL frontend (config couleurs par client via client_id)
+UN SEUL jeu de workflows n8n (routing par client_id)
+UNE base Airtable PAR CLIENT (donnees isolees)
+UN dossier Google Drive PAR CLIENT (fichiers isoles)
+```
+
+### Table de configuration clients (dans n8n ou Airtable admin)
+
+| client_id | nom | airtable_base_id | drive_folder_id | api_token | couleur_primaire | logo_url | metier | email_patron |
+|---|---|---|---|---|---|---|---|---|
+| dupont | Dupont Platrerie | appXXXXXX | 1AbC... | tok_xxx | #F59E0B | /logos/dupont.png | platrerie | patron@dupont.fr |
+| martin | Martin Couverture | appYYYYYY | 1DeF... | tok_yyy | #2563EB | /logos/martin.png | couverture | boss@martin.fr |
+
+Le client_id est transmis dans chaque requete (header ou URL). Les workflows n8n utilisent ce client_id pour router vers la bonne base Airtable et le bon dossier Drive.
+
+---
+
+## Separation reads / writes
+
+- **Reads** (lister dossiers, transcriptions, medias) : le frontend appelle une API route Next.js qui lit Airtable REST API. Pas de passage par n8n pour les lectures simples.
+- **Writes / Traitements** (envoyer audio, photos, videos, corriger) : le frontend appelle un webhook n8n. n8n orchestre les appels API et la persistance dans Airtable.
 
 ---
 
@@ -76,216 +102,201 @@ Tous les appels OpenAI partagent la même clé API (Whisper, TTS, GPT-4o).
 ### Workflow 1 — Dictation (MVP)
 
 ```
-Webhook (POST)
-  ├─ Binary Property activé → fichier audio
-  └─ Body JSON → { piece_id, chantier_id, user_id }
-       │
-       ▼
-HTTP Request → api.openai.com/v1/audio/transcriptions
-  └─ multipart/form-data : file (audio binaire), model ("whisper-1"), language ("fr")
-       │
-       ▼
-Supabase node → Create row
-  └─ table: transcriptions — piece_id, chantier_id, user_id, text, created_at
-       │
-       ▼
-Respond to Webhook → { text, piece_id, saved: true }
+Webhook (POST /v1/dictation)
+  ├─ Header: X-API-Token + X-Client-ID
+  │
+  ├─ IF: verifier token (lookup dans config clients)
+  │  └─ Invalid → Respond 401
+  │
+  ├─ Lookup config client → airtable_base_id, drive_folder_id
+  │
+  ├─ HTTP Request → api.openai.com/v1/audio/transcriptions
+  │  └─ Whisper, language=fr
+  │
+  ├─ Airtable node → Create record (table Transcriptions)
+  │  └─ base: [dynamique selon client_id]
+  │  └─ fields: dossier_id, text, created_at
+  │
+  ├─ Google Docs → Append text au doc du dossier
+  │  └─ Creer le doc si inexistant
+  │
+  ├─ (Optionnel) Email → notification patron
+  │
+  └─ Respond to Webhook → { text, dossier_id, saved: true }
 ```
 
-### Workflow 2 — Relecture vocale par pièce (MVP)
+### Workflow 2 — Relecture TTS (MVP)
 
 ```
-Webhook (POST)
-  └─ Body → { piece_id }
-       │
-       ▼
-Supabase node → Get all rows
-  └─ table: transcriptions — filtre: piece_id, tri: created_at ASC
-       │
-       ▼
-HTTP Request → api.openai.com/v1/audio/speech
-  └─ { model: "tts-1", input: texte assemblé, voice: "alloy" }
-       │
-       ▼
-Respond to Webhook → binaire audio (First Entry Binary)
+Webhook (POST /v1/tts)
+  ├─ Verifier token + lookup config
+  │
+  ├─ Airtable → Get records (table Transcriptions, filtre dossier_id)
+  │
+  ├─ Code node → Assembler le texte
+  │
+  ├─ HTTP Request → api.openai.com/v1/audio/speech
+  │  └─ TTS model: tts-1, voice: alloy
+  │
+  └─ Respond to Webhook → binaire audio (audio/mpeg)
 ```
 
 ### Workflow 3 — Correction vocale (MVP)
 
 ```
-Webhook (POST)
-  └─ Body → { piece_id, texte_correction }
-       │
-       ▼
-Supabase node → Create row
-  └─ table: corrections — piece_id, texte, created_at
-       │
-       ▼
-Respond to Webhook → { success: true }
+Webhook (POST /v1/correction)
+  ├─ Verifier token + lookup config
+  │
+  ├─ Airtable → Create record (table Corrections)
+  │
+  └─ Respond to Webhook → { success: true }
 ```
 
-### Workflow 4 — Upload photo terrain (MVP)
+### Workflow 4 — Upload media (photo/video) (MVP)
 
 ```
-Webhook (POST)
-  ├─ Binary Property activé → fichier image (JPEG/PNG)
-  └─ Body JSON → { piece_id, chantier_id, user_id, description? }
-       │
-       ▼
-Supabase Storage → Upload
-  └─ bucket: photos-chantier/{chantier_id}/{piece_id}/
-  └─ filename: {timestamp}.jpg
-       │
-       ▼
-Supabase node → Create row
-  └─ table: photos — piece_id, chantier_id, user_id, storage_url, description, created_at
-       │
-       ▼
-Respond to Webhook → { url, piece_id, saved: true }
+Webhook (POST /v1/media-upload)
+  ├─ Verifier token + lookup config
+  │
+  ├─ Recevoir binaire (photo ou video)
+  │
+  ├─ Google Drive → Upload dans le dossier client
+  │  └─ Sous-dossier: {dossier_id}/
+  │  └─ Filename: {timestamp}.{ext}
+  │
+  ├─ Airtable → Create record (table Medias)
+  │  └─ fields: dossier_id, type (photo/video), drive_url, created_at
+  │
+  └─ Respond to Webhook → { url, type, saved: true }
 ```
 
-### Workflow 5 — Sync CRM Airtable (V1)
+### Workflow 5 — Notification patron (MVP)
 
 ```
-Trigger: Supabase → Webhook sur insert/update (chantiers, pieces, transcriptions)
-       │
-       ▼
-Airtable node → Create / Update record
-  └─ Base: [configurable par artisan]
-  └─ Tables mappées :
-       - Chantiers → table "Chantiers"
-       - Pièces → table "Pièces"
-       - Transcriptions → table "Notes vocales"
-       - Photos → table "Photos" (avec URL Supabase Storage)
-       │
-       ▼
-Supabase node → Update crm_sync_log
-  └─ status: success/error, synced_at
+Trigger: apres chaque dictation ou upload media
+  │
+  ├─ Lookup email_patron dans config client
+  │
+  ├─ Airtable → Count records du dossier (transcriptions + medias)
+  │
+  ├─ Email node → Envoyer notification
+  │  └─ "Nouveau releve chantier [client] — [N] elements, en attente de validation"
+  │
+  └─ (Pas de reponse, trigger interne)
 ```
 
-### Workflow 6 — Structuration automatique (V1+)
+### Workflow 6 — Structuration IA (V1+)
 
 ```
-Webhook (POST)
-  └─ Body → { chantier_id }
-       │
-       ▼
-Supabase node → Get all rows
-  └─ table: transcriptions — filtre: chantier_id
-       │
-       ▼
-OpenAI node (Chat) — gpt-4o
-  └─ Extraction structurée depuis les transcriptions → JSON (pièces, dimensions, opérations)
-       │
-       ▼
-Supabase node → Create / Update rows (données structurées)
-       │
-       ▼
-Respond to Webhook → données structurées
-```
-
-### Workflow 5 — Assistant métier contextuel (V3)
-
-```
-Webhook (POST)
-  └─ Body → { question, contexte_chantier }
-       │
-       ▼
-OpenAI node (Chat) — gpt-4o
-  └─ Propose plusieurs options, ne décide pas
-       │
-       ▼
-Respond to Webhook → { options[], avertissement }
+Webhook (POST /v1/structuration)
+  ├─ Verifier token + lookup config
+  │
+  ├─ Airtable → Get all transcriptions du dossier
+  │
+  ├─ OpenAI GPT-4o → Extraction structuree
+  │  └─ Prompt configurable par metier (lookup dans config client)
+  │  └─ JSON output: pieces, dimensions, operations
+  │
+  ├─ Airtable → Update dossier avec donnees structurees
+  │
+  └─ Respond to Webhook → donnees structurees
 ```
 
 ---
 
-## Modèle de données
+## Modele de donnees Airtable
 
-Relationnel : organisation → chantier → pièce → données.
+### Base template (dupliquee pour chaque nouveau client)
 
-### Tables MVP
-
-| Table | Rôle |
-|---|---|
-| `organisations` | Isolation du périmètre de données |
-| `users` | Utilisateurs, liés à une organisation |
-| `chantiers` | Chantiers, liés à une organisation et un utilisateur |
-| `pieces` | Pièces d'un chantier (chambre 1, cuisine, SDB…) |
-| `transcriptions` | Transcriptions brutes par pièce |
-| `corrections` | Corrections vocales par pièce |
-| `photos` | Photos terrain liées à un chantier et une pièce (URL Supabase Storage) |
-
-### Tables V1+
-
-| Table | Rôle |
-|---|---|
-| `surfaces` | Surfaces calculées depuis les dimensions (V1) |
-| `operations` | Bibliothèque d'opérations métier (V2) |
-| `prix` | Grille de prix paramétrable par artisan (V2) |
-| `crm_sync_log` | Journal de synchronisation avec le CRM externe (V1) |
-
-Isolation par organisation via **Row Level Security (RLS)** sur toutes les tables.
-
----
-
-## Authentification & sécurité
-
-| Phase | Ce qui est en place |
-|---|---|
-| MVP | Supabase Auth : email + mot de passe ou magic link. Un utilisateur = une organisation. Isolation stricte via RLS. |
-| V1 | Invitation d'utilisateurs dans une organisation. Rôles : Administrateur, Utilisateur. Accès partagé aux chantiers. |
-| V2 | Droits par rôle sur la validation du pré-devis et la génération du devis. Traçabilité : qui a dicté, modifié, validé, quand. |
-
-Règle : plus l'action est engageante, plus le niveau de validation et de traçabilité est élevé.
-
-### Sécurité des webhooks n8n
-
-Les webhooks sont exposés publiquement. Deux niveaux de protection selon la phase :
-
-**MVP — Token statique**
-
-Le frontend envoie un header `X-API-Token` sur chaque requête. Chaque workflow n8n vérifie la valeur via un noeud IF avant de poursuivre. Le token est géré via les variables d'environnement (Vercel côté frontend, Railway côté n8n).
-
-**V1 — Signature HMAC + anti-replay**
-
-Le frontend signe chaque requête avec un HMAC-SHA256 calculé à partir du timestamp Unix et du corps de la requête. n8n vérifie la signature, rejette les requêtes si le timestamp dépasse 5 minutes (anti-replay), et applique un rate limiting par `user_id`. Le secret partagé est géré uniquement via les variables d'environnement, jamais exposé côté client.
-
----
-
-## Déploiement
-
-| Service | Plateforme | Coût estimé |
+| Table | Champs | Role |
 |---|---|---|
-| Frontend (Next.js 15) | Vercel | Free tier |
-| n8n | Railway (Docker, image officielle n8n) | ~$5–10/mois |
-| Supabase | Supabase Cloud | Free tier |
-| OpenAI (Whisper + TTS + GPT-4o) | API — faible volume MVP | ~$8/mois |
-| **Total MVP** | | **~$13–18/mois** |
+| **Dossiers** | id, nom_client, adresse, statut (Brouillon/En cours/Valide), google_doc_url, drive_folder_url, created_at, updated_at | Dossiers chantier |
+| **Transcriptions** | id, dossier_id (link), text, feedback (pouce haut/bas), created_at | Dictees brutes |
+| **Corrections** | id, dossier_id (link), transcription_id (link), text, created_at | Corrections vocales |
+| **Medias** | id, dossier_id (link), type (photo/video), drive_url, description, created_at | Photos et videos |
+| **Feedback** | id, transcription_id (link), rating (up/down), comment, created_at | Retours qualite beta |
+
+### Tables V1+ (ajoutees dans la base existante)
+
+| Table | Role |
+|---|---|
+| **Donnees_structurees** | Pieces, dimensions, operations extraites par GPT-4o |
+| **Operations_metier** | Bibliotheque d'operations par metier (V2) |
+| **Prix** | Grille de prix parametrable par artisan (V2) |
 
 ---
 
-## Point critique : gestion du binaire audio
+## Frontend — Theming white-label
 
-C'est le point le plus sensible de l'architecture. Le fichier audio doit traverser ces étapes sans se corrompre :
+### Systeme de configuration
 
-1. Frontend enregistre via `MediaRecorder` → blob audio
-2. Frontend envoie via `fetch()` en `multipart/form-data` vers le webhook n8n
-3. Webhook reçoit le binaire (`Binary Property` activé, nom du champ : `audio`)
-4. `HTTP Request` renvoie ce binaire à Whisper en `multipart/form-data` (champ `file`)
-5. Whisper retourne la transcription en JSON
+```json
+// config/clients/dupont.json
+{
+  "client_id": "dupont",
+  "name": "Dupont Platrerie",
+  "logo": "/logos/dupont.png",
+  "colors": {
+    "primary": "#F59E0B",
+    "secondary": "#1F2937",
+    "accent": "#F97316",
+    "background": "#0F172A",
+    "surface": "#1E293B",
+    "text": "#F8FAFC"
+  },
+  "metier": "platrerie",
+  "airtable_base_id": "appXXXXXX",
+  "api_token": "tok_xxx",
+  "n8n_base_url": "https://creatorweb.fr/webhook"
+}
+```
 
-À ne pas rater :
-- Le webhook doit avoir `Binary Property` activé avec le nom exact du champ multipart
-- Le `HTTP Request` vers Whisper doit être en `multipart/form-data`, pas JSON
-- Le frontend envoie l'audio comme champ de formulaire, pas comme corps de requête
+### Injection CSS
 
-### Cycle de vie des fichiers audio
+```css
+:root {
+  --color-primary: var(--client-primary, #F59E0B);
+  --color-secondary: var(--client-secondary, #1F2937);
+  --color-accent: var(--client-accent, #F97316);
+  --color-bg: var(--client-bg, #0F172A);
+  --color-surface: var(--client-surface, #1E293B);
+  --color-text: var(--client-text, #F8FAFC);
+}
+```
 
-Les fichiers audio ne sont **jamais stockés** de manière permanente. Le flux est entièrement ephémère :
+Changer les couleurs d'un client = modifier 6 valeurs dans un fichier JSON.
+
+---
+
+## Securite
+
+### MVP
+
+| Mesure | Implementation |
+|---|---|
+| Token API par client | Header X-API-Token verifie par n8n a chaque requete |
+| Isolation donnees | Bases Airtable separees, pas d'acces croise possible |
+| Cles cote serveur | OpenAI, Google, Airtable admin = variables n8n, jamais exposees au frontend |
+| HTTPS obligatoire | Vercel + creatorweb.fr = TLS par defaut |
+| Pas de secrets dans le frontend | Le frontend connait uniquement client_id et api_token (non sensible) |
+
+### V1
+
+| Mesure | Implementation |
+|---|---|
+| HMAC-SHA256 | Signature de chaque requete (timestamp + body) |
+| Anti-replay | Rejet si timestamp > 5 min |
+| Rate limiting | Par client_id dans n8n |
+| Auth utilisateur | Login email/mdp ou magic link |
+
+---
+
+## Cycle de vie des fichiers
+
+### Audio (ephemere)
 
 ```
-Frontend          n8n / Backend          OpenAI
+Frontend          n8n               OpenAI
    │                   │                   │
    │  blob (RAM)       │                   │
    ├──────────────────►│                   │
@@ -293,162 +304,100 @@ Frontend          n8n / Backend          OpenAI
    │                   ├──────────────────►│  Whisper
    │                   │◄── texte ─────────┤
    │                   │                   │
-   │                   │  Sauvegarde texte  │
-   │◄── texte ─────────┤  dans Supabase    │
+   │                   │  Save texte       │
+   │◄── texte ─────────┤  dans Airtable   │
    │                   │                   │
    │  blob = null (GC) │  blob = null (GC) │
 ```
 
-Seul le texte transcrit est persévéré. Aucune colonne audio dans les tables de la base de données.
+Seul le texte transcrit est persiste. Aucun fichier audio stocke.
+
+### Photos / Videos (permanent)
+
+```
+Frontend          n8n               Google Drive
+   │                   │                   │
+   │  blob             │                   │
+   ├──────────────────►│                   │
+   │                   │  Upload           │
+   │                   ├──────────────────►│  Stockage permanent
+   │                   │◄── drive_url ─────┤
+   │                   │                   │
+   │                   │  Save URL dans    │
+   │◄── saved ─────────┤  Airtable         │
+```
 
 ---
 
-## Détection de commandes (MVP — côté frontend)
+## Mode offline (PWA) — V1
 
-Le frontend analyse les transcriptions pour détecter des commandes par mots-clés :
-
-| Mot-clé | Action déclenchée |
+| Phase | Comportement |
 |---|---|
-| "relis" | Appel Workflow 2 (relecture TTS de la pièce) |
-| "corrige" | Mode correction — prochaine dictée traitée comme correction |
-| "ajoute" | Ajout d'une nouvelle transcription sur la pièce en cours |
+| MVP | Indicateur visuel si connexion perdue. Les enregistrements sont mis en file d'attente dans IndexedDB. Upload automatique au retour du reseau. |
+| V1 | Service Worker complet. Queue locale avec retry. Indicateur du nombre d'elements en attente. Background Sync API. |
+
+---
+
+## Deploiement
+
+| Service | Plateforme | Cout estime |
+|---|---|---|
+| Frontend (Next.js 15) | Vercel | Free tier |
+| n8n | creatorweb.fr (self-hosted) | Inclus |
+| Airtable | Airtable Cloud | Free tier (1000 records/base) → Team ($20/mois pour plus) |
+| Google Drive + Docs | Google Workspace | Free tier (15 Go) |
+| OpenAI (Whisper + TTS) | API | ~$8/mois (faible volume MVP) |
+| **Total MVP** | | **~$8/mois** (hors Airtable si depasse free tier) |
+
+---
+
+## Onboarding d'un nouveau client
+
+1. **Dupliquer la base Airtable template** → nouvelle base avec tables vides
+2. **Creer un dossier Google Drive** pour le client
+3. **Ajouter une entree** dans la table de config clients (client_id, base_id, drive_folder_id, token, couleurs, logo)
+4. **Deployer le frontend** avec la config client (ou mettre a jour la config si deploiement unique)
+5. **Envoyer le lien** au client
+
+Temps estime : 15 minutes par nouveau client.
 
 ---
 
 ## Risques & mitigation
 
-| Risque | Sévérité | Solution MVP | Solution V1+ |
+| Risque | Severite | Solution MVP | Solution V1+ |
 |---|---|---|---|
-| Binaire audio corrompu dans n8n | Critique | Tester en premier. Si échec : proxy via une API Route Next.js qui appelle Whisper puis transmet le texte à n8n. | — |
-| SPOF sur n8n (orchestration backend centralisée) | Élevé | Toast d'erreur si n8n indisponible (timeout 10s). | Queue locale IndexedDB + replay automatique. Health check n8n toutes les 30s. |
-| Couplage fort avec OpenAI (Whisper, TTS, GPT-4o) | Élevé | Un workflow unique par service. | Workflows alternatifs (Google Cloud STT, Anthropic) activables via une table `app_config` dans Supabase. Fallback automatique sur erreur 5xx. |
-| Webhooks exposés sans authentification | Moyen | Token statique dans les headers, vérifié par un noeud IF. | HMAC-SHA256 + timestamp anti-replay + rate limiting par `user_id`. |
-| Whisper peu fiable en bruit chantier | Moyen | Tester avec des enregistrements réels chantier. | Si précision < 75% : activer le workflow Google Cloud STT. |
-| Latence cumulée (~3s par dictée) | Moyen | Acceptable MVP. | Externaliser le flow STT vers une API route rapide. Tests de charge avant V1 (min. 10 utilisateurs simultanés). |
-| PWA pas fluide sur iOS | Moyen | Tester sur iPhone avant de valider le MVP. | Si bloquant : migrer vers React Native — les workflows n8n et Supabase ne changent pas. |
+| Whisper peu fiable en bruit chantier | Critique | Tester avec enregistrements reels. Si < 75% : tester Google Cloud STT. | Fallback automatique |
+| Airtable free tier depasse (1000 records) | Moyen | Suffisant pour 5 beta. Monitorer. | Upgrade Airtable Team ou migration Supabase |
+| Latence Whisper (2-5s) | Moyen | Web Speech API pour feedback immediat | Optimisation audio format |
+| Pas de reseau sur le chantier | Eleve | Indicateur + queue locale basique | PWA offline complete |
+| Google Drive quota (15 Go gratuit) | Moyen | Suffisant pour le beta (photos compressees) | Google Workspace ou S3 |
+| Duplication manuelle pour chaque client | Moyen | Acceptable pour 5 clients | Script d'onboarding automatise |
 
 ---
 
-## Observabilité & logging
+## Priorites par phase
 
-| Phase | Ce qui est en place |
-|---|---|
-| MVP | Logs JSON via `console.log` dans les noeuds Code n8n. Accessibles depuis Railway Dashboard > Logs. |
-| V1 | Table `app_logs` dans Supabase (niveau, workflow, message, métadonnées, user_id). Noeud de logging réutilisable dans chaque workflow. Dashboard admin dans Next.js. Alertes par email via un workflow n8n planifié (scan toutes les 5 min). Retention automatique à 30 jours via `pg_cron`. |
+### Sprint 1 — Template frontend + Workflow dictation
+- Frontend : accueil, gros bouton micro, dossiers, theming
+- Workflow 1 : dictation (audio → Whisper → Airtable)
+- Base Airtable template
+- Config client JSON
 
----
+### Sprint 2 — Capture media + relecture
+- Workflow 4 : upload photo/video → Drive
+- Workflow 2 : relecture TTS
+- Frontend : capture photo, capture video, relecture audio
 
-## Stratégie de tests
+### Sprint 3 — Corrections + notifications + feedback
+- Workflow 3 : correction vocale
+- Workflow 5 : notification patron par email
+- Frontend : boutons feedback (pouce haut/bas)
+- Mode demo pour Sabrina
 
-| Niveau | MVP | V1+ |
-|---|---|---|
-| Unitaires | — | Vitest sur les fonctions frontend (signature webhooks, gestion audio). |
-| Intégration | Test manuel du flux binaire audio vers n8n (voir "Premier pas concret"). | Tests HTTP automatisés contre les webhooks n8n avec des fichiers audio par condition : calme, bruit léger, bruit chantier. |
-| E2E | Checklist manuelle documentée (flux dictation, relecture TTS, bruit chantier). | Playwright : simulation du flux complet sur mobile. |
-| Performance | — | Tests de charge avant V1 (min. 10 utilisateurs simultanés). Seuils : latence < 5s, précision STT > 75% en bruit chantier. |
-| CI/CD | — | GitHub Actions : unitaires → intégration → E2E. |
-
----
-
-## Backup & récupération
-
-| Élément | MVP | V1+ |
-|---|---|---|
-| Workflows n8n | Export manuel via l'API n8n (`GET /api/v1/workflows`). Stocker dans le dépôt git. | GitHub Actions quotidien : export automatique vers les artefacts GitHub (retention 30 jours). |
-| Base de données | Backups automatiques inclus (Supabase Pro). Free tier : export `pg_dump` manuel hebdomadaire. | Automatisation quotidienne via GitHub Actions. |
-| RTO / RPO | RPO : 1 semaine. RTO : non défini. | RPO : 24h. RTO : 4h. Procédure de restauration documentée. |
-
----
-
-## RGPD & conformité
-
-### Sous-traitants
-
-| Service | Finalité | Localisation |
-|---|---|---|
-| Supabase | Base de données | AWS Europe (Frankfurt) |
-| OpenAI | Transcription (Whisper), synthèse vocale (TTS), structuration (GPT-4o) | USA |
-| Railway | Orchestration (n8n) | USA |
-| Vercel | Hébergement frontend | Edge global |
-
-Les transferts vers les USA sont encadrés par les Clauses Contractuelles Types de la Commission Européenne.
-
-### Retention & suppression
-
-- **Audio** : jamais stocké. Voir "Cycle de vie des fichiers audio".
-- **Transcriptions & corrections** : conservées tant que le chantier est actif + 2 ans après archivage. Suppression automatique via `pg_cron`.
-- **Logs** : anonymisation du `user_id` après 90 jours. Suppression complète après 30 jours.
-- **Droit à l'oubli** : fonction de suppression complète des données d'un utilisateur (chantiers, pièces, transcriptions, corrections, logs). Accessible depuis l'interface utilisateur (espace compte).
-
----
-
-## Mode hors-ligne
-
-| Phase | Comportement |
-|---|---|
-| MVP | Indicateur visuel (bandeau) si la connexion est perdue. Les enregistrements ne sont pas sauvegardés en mode hors-ligne. |
-| V1 | PWA avec Service Worker. Les dictées sont stockées dans une queue IndexedDB. Sync automatique en arrière-plan dès que la connexion est retablie (`Background Sync API`). Indicateur du nombre d'enregistrements en attente. |
-
----
-
-## Versionning des webhooks
-
-Tous les webhooks sont préfixés par leur version dès le départ :
-
-```
-/webhook/v1/dictation
-/webhook/v1/tts
-/webhook/v1/correction
-/webhook/v1/structuration
-```
-
-Le frontend centralise les endpoints dans un fichier de configuration. En cas d'évolution incompatible, l'ancien endpoint reste actif en parallèle jusqu'à migration complète.
-
----
-
-## Priorités par phase
-
-### Avant le MVP
-- Tester le flux binaire audio direct vers n8n (blocker du projet)
-- Ne jamais stocker les fichiers audio
-- Token statique sur les webhooks
-- Logs basiques via Railway
-
-### Au niveau du MVP
-- Toast d'erreur si n8n est indisponible
-- Indicateur hors-ligne
-- Checklist de tests manuels documentée
-- Export manuel hebdomadaire des workflows n8n
-
-### Pour la V1
-- HMAC + rate limiting sur les webhooks
-- Queue locale + replay automatique (mode hors-ligne complet)
-- Workflows alternatifs (fallback STT, TTS, LLM)
-- Table `app_logs` + dashboard + alertes
-- Tests automatisés (Vitest + Playwright + CI/CD)
-- Backup automatisé quotidien
-- RGPD complet (retention, droit à l'oubli, page de gestion)
-- Versionning `/v1/` sur tous les webhooks
-
----
-
-## Premier pas concret
-
-```
-1. Créer un compte Supabase (free tier)
-2. Déployer une instance n8n sur Railway (Docker, image officielle)
-3. Créer un projet Next.js 15 sur Vercel
-
-4. *** AVANT DE CODER AUTRE CHOSE ***
-   Construire le Workflow 1 dans n8n :
-       Webhook (binary) → HTTP Request (Whisper) → Respond to Webhook
-   Tester avec un fichier audio réel depuis le navigateur.
-       → Ça marche : on continue.
-       → Le binaire se corrompt : on teste avec un petit proxy Node.js en entre.
-       → Whisper échoue en bruit : on teste Google Cloud STT à la même place.
-
-5. Une fois le Workflow 1 validé : connecter Supabase (auth + première table)
-6. Construire le frontend : enregistrement audio → appel webhook → affichage
-7. Construire le Workflow 2 (TTS) et tester la relecture
-8. Déployer
-```
+### Sprint 4 — Offline + polish + deploiement beta
+- PWA : queue IndexedDB, indicateurs, sync
+- Tests terrain reels (bruit chantier)
+- Deploiement Vercel
+- Onboarding des 5 premiers clients
+- Post LinkedIn

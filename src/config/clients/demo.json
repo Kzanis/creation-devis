@@ -1,0 +1,24 @@
+{
+  "client_id": "demo",
+  "name": "Demo Artisan",
+  "logo": null,
+  "colors": {
+    "primary": "#F59E0B",
+    "primaryHover": "#D97706",
+    "primaryLight": "rgba(245, 158, 11, 0.15)",
+    "accent": "#F97316",
+    "background": "#0F172A",
+    "surface": "#1E293B",
+    "surfaceBorder": "#334155",
+    "text": "#F8FAFC",
+    "textMuted": "#94A3B8",
+    "danger": "#EF4444",
+    "dangerLight": "rgba(239, 68, 68, 0.15)",
+    "success": "#22C55E",
+    "successLight": "rgba(34, 197, 94, 0.15)"
+  },
+  "metier": "general",
+  "airtable_base_id": "",
+  "api_token": "",
+  "n8n_base_url": "https://creatorweb.fr/webhook"
+}

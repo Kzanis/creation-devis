@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 
@@ -8,8 +8,22 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Assistant vocal de chantier",
-  description: "Dictée vocale et transcription pour artisans BTP.",
+  title: "Dictaphone Chantier",
+  description: "Assistant vocal de chantier — dictée, photos, vidéos pour artisans BTP.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Chantier",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({

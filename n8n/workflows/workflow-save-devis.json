@@ -1,0 +1,86 @@
+{
+  "name": "Workflow — Save Devis Excel to Drive",
+  "active": true,
+  "nodes": [
+    {
+      "id": "webhook-receive",
+      "name": "Webhook — Reception Excel",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "typeVersion": 2,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/save-devis",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      }
+    },
+    {
+      "id": "extract-binary",
+      "name": "Extract Binary Data",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "position": [250, 0],
+      "typeVersion": 1,
+      "parameters": {
+        "mode": "jsonToBinary",
+        "sourceKey": "file",
+        "options": {}
+      }
+    },
+    {
+      "id": "gdrive-upload",
+      "name": "Google Drive — Upload Excel",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [500, 0],
+      "typeVersion": 3,
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.body.dossier_numero || 'sans-numero' }}_{{ $json.body.client || 'client' }}_pre-devis.xlsx",
+        "folderId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}",
+        "options": {
+          "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [750, 0],
+      "typeVersion": 1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"file_url\": $json.webViewLink, \"webViewLink\": $json.webViewLink, \"file_id\": $json.id, \"file_name\": $json.name } }}"
+      }
+    }
+  ],
+  "connections": {
+    "webhook-receive": {
+      "main": [
+        [{ "node": "extract-binary", "type": "main", "index": 0 }]
+      ]
+    },
+    "extract-binary": {
+      "main": [
+        [{ "node": "gdrive-upload", "type": "main", "index": 0 }]
+      ]
+    },
+    "gdrive-upload": {
+      "main": [
+        [{ "node": "respond-webhook", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_comment": "INSTRUCTIONS: 1) Import dans n8n, 2) Remplacer REPLACE_WITH_YOUR_CREDENTIAL_ID par l'ID de vos credentials Google Drive, 3) Configurer GOOGLE_DRIVE_FOLDER_ID dans les variables d'environnement n8n, 4) Activer le workflow"
+}
