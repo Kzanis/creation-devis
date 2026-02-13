@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import AudioRecorder from "@/components/AudioRecorder";
 import PhotoCapture from "@/components/PhotoCapture";
+import PlanAnalyzer from "@/components/PlanAnalyzer";
 import PreDevis from "@/components/PreDevis";
+import AgentResponseCard from "@/components/AgentResponse";
+import SubAgentPanel from "@/components/SubAgentPanel";
 import DossierSelector, { type Dossier } from "@/components/DossierSelector";
 import { getClientConfig } from "@/lib/clientConfig";
+import type { AgentResponse } from "@/types/agent";
 
 const config = getClientConfig();
 
@@ -14,11 +18,31 @@ export default function Home() {
   const [segments, setSegments] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [agentResponse, setAgentResponse] = useState<AgentResponse | null>(null);
+  const [triggerDevis, setTriggerDevis] = useState(0);
+  const preDevisRef = useRef<HTMLDivElement>(null);
 
   const handleTranscription = useCallback((text: string) => {
     if (text.trim()) {
       setSegments((prev) => [...prev, text.trim()]);
       setSent(false);
+    }
+  }, []);
+
+  const handleAgentResponse = useCallback((response: AgentResponse) => {
+    // Dictation intent: text already added to segments via onTranscription
+    // For non-dictation intents: show the agent response card
+    if (response.intent !== "dictation") {
+      setAgentResponse(response);
+    }
+
+    // If devis intent: trigger the PreDevis component
+    if (response.intent === "devis" && response.data?.trigger === "generate-devis") {
+      setTriggerDevis((prev) => prev + 1);
+      // Scroll to PreDevis section
+      setTimeout(() => {
+        preDevisRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
     }
   }, []);
 
@@ -96,9 +120,27 @@ export default function Home() {
           </section>
 
           {/* Micro */}
-          <section className="flex flex-col items-center py-4">
-            <AudioRecorder onTranscription={handleTranscription} />
+          <section className="flex flex-col items-center gap-4 py-4">
+            <AudioRecorder
+              onTranscription={handleTranscription}
+              dossierId={selectedDossier?.id}
+              onAgentResponse={handleAgentResponse}
+            />
+            <SubAgentPanel
+              dossierId={selectedDossier?.id}
+              onAgentResponse={handleAgentResponse}
+            />
           </section>
+
+          {/* Agent response */}
+          {agentResponse && agentResponse.intent !== "dictation" && (
+            <section>
+              <AgentResponseCard
+                response={agentResponse}
+                onDismiss={() => setAgentResponse(null)}
+              />
+            </section>
+          )}
 
           {/* Segments accumules */}
           {segments.length > 0 && (
@@ -164,6 +206,21 @@ export default function Home() {
             </div>
           )}
 
+          {/* Pre-devis — visible juste apres la dictee, pas besoin de plan */}
+          {selectedDossier && (
+            <section className="pb-4" ref={preDevisRef}>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Pre-devis
+              </label>
+              <PreDevis
+                key={triggerDevis}
+                dossierId={selectedDossier.id}
+                dossierNumero={selectedDossier.numero}
+                dossierClient={selectedDossier.client}
+              />
+            </section>
+          )}
+
           {/* Photos */}
           <section>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -172,15 +229,13 @@ export default function Home() {
             <PhotoCapture dossierId={selectedDossier?.id} />
           </section>
 
-          {/* Pre-devis */}
-          {selectedDossier && (
-            <section className="pb-4">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Pre-devis
-              </label>
-              <PreDevis dossierId={selectedDossier.id} dossierNumero={selectedDossier.numero} dossierClient={selectedDossier.client} />
-            </section>
-          )}
+          {/* Plans */}
+          <section>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Plans
+            </label>
+            <PlanAnalyzer dossierId={selectedDossier?.id} />
+          </section>
         </div>
       </main>
 

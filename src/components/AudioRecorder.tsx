@@ -2,15 +2,21 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { sendAudioForTranscription } from "@/lib/webhookClient";
+import { getAgentContext, setAgentContext } from "@/lib/agentContext";
+import type { AgentResponse } from "@/types/agent";
 
 type RecordingStatus = "idle" | "recording" | "uploading";
+type AgentStatus = "idle" | "classifying" | "processing";
 
 interface AudioRecorderProps {
   onTranscription: (text: string) => void;
+  dossierId?: string;
+  onAgentResponse?: (response: AgentResponse) => void;
 }
 
-export default function AudioRecorder({ onTranscription }: AudioRecorderProps) {
+export default function AudioRecorder({ onTranscription, dossierId, onAgentResponse }: AudioRecorderProps) {
   const [status, setStatus] = useState<RecordingStatus>("idle");
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [liveText, setLiveText] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
@@ -125,7 +131,49 @@ export default function AudioRecorder({ onTranscription }: AudioRecorderProps) {
 
     try {
       const result = await sendAudioForTranscription({ audioBlob: blob });
-      onTranscription(result.text);
+      const transcribedText = result.text;
+
+      // If agent callback provided, route through agent
+      if (onAgentResponse && transcribedText.trim()) {
+        setStatus("idle");
+        setAgentStatus("classifying");
+
+        try {
+          const context = getAgentContext();
+          const agentRes = await fetch("/api/agent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: transcribedText,
+              dossierId: dossierId || "",
+              context,
+            }),
+          });
+
+          const agentData: AgentResponse = await agentRes.json();
+
+          // Update context for next turn
+          if (agentData.context) {
+            setAgentContext(agentData.context);
+          }
+
+          if (agentData.intent === "dictation") {
+            // Dictation: add to segments as before
+            onTranscription(agentData.message);
+          }
+
+          // Always notify parent of agent response
+          onAgentResponse(agentData);
+        } catch {
+          // Agent failed — fallback to normal dictation
+          onTranscription(transcribedText);
+        } finally {
+          setAgentStatus("idle");
+        }
+      } else {
+        // No agent — original behavior
+        onTranscription(transcribedText);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur lors de la transcription.");
     }
@@ -133,8 +181,8 @@ export default function AudioRecorder({ onTranscription }: AudioRecorderProps) {
     audioBlobRef.current = null;
     setLiveText("");
     setDuration(0);
-    setStatus("idle");
-  }, [stopSpeechRecognition, onTranscription]);
+    if (status !== "idle") setStatus("idle");
+  }, [stopSpeechRecognition, onTranscription, onAgentResponse, dossierId, status]);
 
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -198,6 +246,16 @@ export default function AudioRecorder({ onTranscription }: AudioRecorderProps) {
 
       {status === "uploading" && (
         <p className="text-base text-[var(--color-text-muted)]">Transcription en cours&hellip;</p>
+      )}
+
+      {agentStatus === "classifying" && (
+        <div className="flex items-center gap-2">
+          <svg className="h-4 w-4 animate-spin text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-sm text-[var(--color-primary)]">Analyse de la commande&hellip;</p>
+        </div>
       )}
 
       {/* Live transcript */}

@@ -121,37 +121,62 @@ export async function POST(request: NextRequest) {
       .join("\n");
 
     // ── 3) Appel au LLM ──
-    const systemPrompt = `Tu es un assistant specialise dans la generation de pre-devis pour artisans du batiment.
+    const systemPrompt = `Tu es un metreur specialise dans la generation de pre-devis pour artisans du batiment (peinture, revetements, second oeuvre).
 
-A partir d'une transcription de visite de chantier et d'un bordereau de prix, tu generes un pre-devis structure.
+A partir d'une transcription de visite de chantier et d'un bordereau de prix, tu generes un pre-devis structure avec des QUANTITES CALCULEES.
 
 REGLES :
 - Structure le devis piece par piece
 - Pour chaque piece, identifie les travaux a effectuer
 - Matche chaque travail avec la ligne du bordereau la plus appropriee (utilise l'intitule EXACT du bordereau)
-- Estime les quantites a partir de la transcription (si mentionnees) ou mets 0 si pas d'info
 - Si un travail decrit ne correspond a aucune ligne du bordereau, utilise l'intitule "Hors bordereau" avec un prix a 0
 - Retourne UNIQUEMENT du JSON valide, sans markdown, sans commentaire
+
+CALCUL DES QUANTITES (OBLIGATOIRE) :
+Quand la transcription mentionne des dimensions (longueur, largeur, hauteur), tu DOIS calculer les surfaces :
+- Plafond = longueur x largeur (en m2)
+- Murs = 2 x (longueur + largeur) x hauteur (en m2)
+- Sol = longueur x largeur (en m2)
+- Si des ouvertures sont mentionnees (portes, fenetres), deduis leur surface des murs (porte standard = 2 m2, fenetre standard = 1.5 m2 si dimensions non precisees)
+- Si les dimensions sont en centimetres (ex: "350 par 280"), convertis en metres (3.50 x 2.80)
+- Pour les travaux lineaires (plinthes, corniches), calcule le perimetre : 2 x (longueur + largeur) en ml
+- Si une seule dimension est donnee pour un mur (ex: "mur de 4 metres"), c'est la longueur du mur. Utilise la hauteur mentionnee ou 2.50m par defaut.
+- Si aucune dimension n'est mentionnee pour une piece, mets la quantite a 0
+
+EXEMPLES DE CALCUL :
+- "chambre 1, 350 par 280, hauteur 248" → plafond = 3.50 x 2.80 = 9.80 m2, murs = 2 x (3.50 + 2.80) x 2.48 = 31.25 m2
+- "salon 5 metres par 4, hauteur 2.50" → plafond = 5.00 x 4.00 = 20.00 m2, murs = 2 x (5.00 + 4.00) x 2.50 = 45.00 m2
+- "couloir 6 metres par 1.20" → plafond = 6.00 x 1.20 = 7.20 m2, murs = 2 x (6.00 + 1.20) x 2.50 = 36.00 m2
+
+Si la transcription dit "peinture complete" ou "tout refaire", applique peinture plafond + peinture murs pour cette piece.
+Arrondis les quantites a 2 decimales.
 
 FORMAT DE SORTIE (JSON) :
 {
   "pieces": [
     {
-      "nom": "Salle de bain",
+      "nom": "Chambre 1",
       "lignes": [
         {
-          "intitule": "Grattage enduit / decroutage",
+          "intitule": "Application peinture acrylique murs 2 couches",
           "unite": "m2",
-          "quantite": 12,
+          "quantite": 31.25,
           "prix_unitaire_ht": 12,
-          "total_ht": 144
+          "total_ht": 375
+        },
+        {
+          "intitule": "Application peinture acrylique plafond 2 couches",
+          "unite": "m2",
+          "quantite": 9.80,
+          "prix_unitaire_ht": 14,
+          "total_ht": 137.20
         }
       ],
-      "sous_total_ht": 144
+      "sous_total_ht": 512.20
     }
   ],
-  "total_ht": 144,
-  "notes": "Remarques ou precisions utiles"
+  "total_ht": 512.20,
+  "notes": "Hauteur sous plafond: 2.48m. Surfaces calculees a partir des cotes relevees."
 }`;
 
     const userPrompt = `TRANSCRIPTION DU RELEVE DE CHANTIER :
