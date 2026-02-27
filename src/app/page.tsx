@@ -226,7 +226,11 @@ export default function Home() {
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
               Photos chantier
             </label>
-            <PhotoCapture dossierId={selectedDossier?.id} />
+            <PhotoCapture
+              dossierId={selectedDossier?.id}
+              dossierNumero={selectedDossier?.numero}
+              dossierClient={selectedDossier?.client}
+            />
           </section>
 
           {/* Plans */}

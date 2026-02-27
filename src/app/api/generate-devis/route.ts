@@ -66,10 +66,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const texteComplet = transcriptions
+    const allTexts = transcriptions
       .map((r: { fields: { Texte?: string } }) => r.fields.Texte || "")
-      .filter(Boolean)
-      .join("\n\n");
+      .filter(Boolean);
+
+    // Deduplicate identical texts (correction + save can create duplicates)
+    const seen = new Set<string>();
+    const uniqueTexts = allTexts.filter((t: string) => {
+      if (seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+
+    const texteComplet = uniqueTexts.join("\n\n");
 
     // ── 2) Charger le bordereau de prix ──
     const bordereauRes = await fetch(
@@ -127,8 +136,13 @@ A partir d'une transcription de visite de chantier et d'un bordereau de prix, tu
 
 REGLES :
 - Structure le devis piece par piece
+- IMPORTANT : chaque piece n'apparait qu'UNE SEULE FOIS, meme si elle a plusieurs prestations (plafond, murs, sol). Regroupe toutes les lignes sous la meme piece.
 - Pour chaque piece, identifie les travaux a effectuer
-- Matche chaque travail avec la ligne du bordereau la plus appropriee (utilise l'intitule EXACT du bordereau)
+- Matche chaque travail avec la ligne du bordereau la plus appropriee
+- Quand le bordereau a une seule ligne generique (ex: "Application peinture complete"), cree des lignes SEPAREES pour chaque surface en ajoutant la precision entre parentheses :
+  → "Application peinture complete (impression + 2 couches) — plafond" pour le plafond
+  → "Application peinture complete (impression + 2 couches) — murs" pour les murs
+  Utilise le MEME prix unitaire du bordereau pour les deux.
 - Si un travail decrit ne correspond a aucune ligne du bordereau, utilise l'intitule "Hors bordereau" avec un prix a 0
 - Retourne UNIQUEMENT du JSON valide, sans markdown, sans commentaire
 
@@ -242,9 +256,13 @@ Genere le pre-devis en JSON.`;
       let sousTotalPiece = 0;
       for (const ligne of piece.lignes || []) {
         // Forcer le prix du bordereau si l'intitule correspond
+        // Also match variants like "Prestation — plafond" or "Prestation — murs"
         const key = (ligne.intitule || "").toLowerCase().trim();
+        const baseKey = key.replace(/\s*[—–-]\s*(plafond|murs|sol|mur)$/i, "").trim();
         if (prixBordereau.has(key)) {
           ligne.prix_unitaire_ht = prixBordereau.get(key)!;
+        } else if (prixBordereau.has(baseKey)) {
+          ligne.prix_unitaire_ht = prixBordereau.get(baseKey)!;
         }
         const qte = Number(ligne.quantite) || 0;
         const pu = Number(ligne.prix_unitaire_ht) || 0;

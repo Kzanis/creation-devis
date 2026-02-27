@@ -11,6 +11,13 @@ import type { AgentContext, AgentResponse } from "@/types/agent";
 
 const N8N_ORCHESTRATOR_URL = process.env.WEBHOOK_N8N_AGENT_ORCHESTRATOR_URL;
 
+// Intents that must bypass n8n orchestrator (use local handlers with real data)
+const READBACK_KEYWORDS = /\b(relis|relire|rappelle|rappeler|résumé|resume|qu'est.ce que j'ai dit|relecture|relit)\b/i;
+
+function isReadbackIntent(text: string): boolean {
+  return READBACK_KEYWORDS.test(text);
+}
+
 /**
  * Try the n8n AI Agent orchestrator first.
  * Returns AgentResponse if successful, null if n8n is unreachable.
@@ -111,51 +118,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Strategy 1: Try n8n AI Agent orchestrator
-    const n8nResponse = await tryN8nOrchestrator(text.trim(), dossierId || "");
-    if (n8nResponse) {
-      console.log(`[Agent] n8n → ${n8nResponse.intent}: ${n8nResponse.action}`);
-      return NextResponse.json(n8nResponse);
+    const trimmedText = text.trim();
+
+    // Pre-check: readback intent MUST use local handler (n8n returns conversational
+    // response without actual transcription content — useless for TTS readback)
+    const forceLocal = isReadbackIntent(trimmedText);
+
+    if (forceLocal) {
+      console.log(`[Agent] Readback detected, bypassing n8n → local handler`);
     }
 
-    // n8n failed — log prominently and flag in response
-    console.error(
-      `[Agent] ⚠️ N8N ORCHESTRATOR INDISPONIBLE — fallback local active pour: "${text.substring(0, 80)}"`
-    );
+    // Strategy 1: Try n8n AI Agent orchestrator (unless bypassed)
+    if (!forceLocal) {
+      const n8nResponse = await tryN8nOrchestrator(trimmedText, dossierId || "");
+      if (n8nResponse) {
+        console.log(`[Agent] n8n → ${n8nResponse.intent}: ${n8nResponse.action}`);
+        return NextResponse.json(n8nResponse);
+      }
 
-    // Strategy 2: Local classifier + handlers (fallback)
-    const classification = await classifyIntent(text.trim(), context || null);
+      // n8n failed — log prominently and flag in response
+      console.error(
+        `[Agent] N8N ORCHESTRATOR INDISPONIBLE — fallback local active pour: "${text.substring(0, 80)}"`
+      );
+    }
+
+    // Strategy 2: Local classifier + handlers
+    const classification = forceLocal
+      ? { intent: "readback" as const, confidence: 1, entity: null, reasoning: "Keyword match — bypassed n8n" }
+      : await classifyIntent(trimmedText, context || null);
 
     console.log(
-      `[Agent] local → "${text.substring(0, 60)}..." → ${classification.intent} (${classification.confidence}) entity=${classification.entity}`
+      `[Agent] ${forceLocal ? "forced-local" : "local"} → "${trimmedText.substring(0, 60)}..." → ${classification.intent} (${classification.confidence}) entity=${classification.entity}`
     );
 
     let response: AgentResponse;
 
     switch (classification.intent) {
       case "readback":
-        response = await handleReadback(text.trim(), dossierId || "", classification);
+        response = await handleReadback(trimmedText, dossierId || "", classification);
         break;
       case "correction":
-        response = await handleCorrection(text.trim(), dossierId || "", classification, context || null);
+        response = await handleCorrection(trimmedText, dossierId || "", classification, context || null);
         break;
       case "devis":
-        response = await handleDevis(text.trim(), dossierId || "");
+        response = await handleDevis(trimmedText, dossierId || "");
         break;
       case "info":
-        response = await handleInfo(text.trim(), dossierId || "", classification);
+        response = await handleInfo(trimmedText, dossierId || "", classification);
         break;
       case "dictation":
       default:
-        response = await handleDictation(text.trim(), dossierId || "", classification);
+        response = await handleDictation(trimmedText, dossierId || "", classification);
         break;
     }
 
-    // Flag that this came from local fallback, not n8n
+    // Flag source of response
     response.data = {
       ...response.data,
       _fallback: true,
-      _fallback_reason: "n8n_orchestrator_indisponible",
+      _fallback_reason: forceLocal ? "bypass_n8n_readback" : "n8n_orchestrator_indisponible",
     };
 
     return NextResponse.json(response);

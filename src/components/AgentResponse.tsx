@@ -144,15 +144,14 @@ export default function AgentResponse({ response, onDismiss }: AgentResponseProp
     }
   }, [response.tts, playing, speakWithBrowser, stopSpeaking]);
 
-  // Auto-play TTS for readback intent
+  // Auto-play TTS for readback intent — use browser speech (instant, no autoplay restriction)
   useEffect(() => {
     if (response.intent === "readback" && response.tts && !autoPlayedRef.current) {
       autoPlayedRef.current = true;
-      // Small delay to let the UI render first
-      const timer = setTimeout(() => playTts(), 300);
-      return () => clearTimeout(timer);
+      // Use browser SpeechSynthesis directly — no network call, no autoplay issue
+      speakWithBrowser(response.tts);
     }
-  }, [response.intent, response.tts, playTts]);
+  }, [response.intent, response.tts, speakWithBrowser]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -192,17 +191,17 @@ export default function AgentResponse({ response, onDismiss }: AgentResponseProp
       {response.tts && (
         <div className="mt-3 flex items-center gap-2">
           <button
-            onClick={playTts}
-            disabled={loadingTts}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 disabled:opacity-50"
+            onClick={() => {
+              if (playing) {
+                stopSpeaking();
+              } else {
+                speakWithBrowser(response.tts!);
+              }
+            }}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110"
             style={{ backgroundColor: config.color, color: "white" }}
           >
-            {loadingTts ? (
-              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : playing ? (
+            {playing ? (
               <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="4" width="4" height="16" rx="1" />
                 <rect x="14" y="4" width="4" height="16" rx="1" />
@@ -212,7 +211,24 @@ export default function AgentResponse({ response, onDismiss }: AgentResponseProp
                 <path d="M8 5v14l11-7z" />
               </svg>
             )}
-            {playing ? "Pause" : "Ecouter"}
+            {playing ? "Stop" : "Reecouter"}
+          </button>
+          <button
+            onClick={playTts}
+            disabled={loadingTts}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--color-surface-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-muted)] transition-all hover:text-[var(--color-text)] disabled:opacity-50"
+          >
+            {loadingTts ? (
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              </svg>
+            )}
+            Voix HD
           </button>
         </div>
       )}

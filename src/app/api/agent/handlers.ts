@@ -140,10 +140,19 @@ export async function handleReadback(
       };
     }
 
-    const allText = records
+    const allTexts = records
       .map((r: { fields: { Texte?: string } }) => r.fields.Texte || "")
-      .filter(Boolean)
-      .join("\n\n");
+      .filter(Boolean);
+
+    // Deduplicate identical texts (can happen when correction + save create duplicates)
+    const seen = new Set<string>();
+    const uniqueTexts = allTexts.filter((t: string) => {
+      if (seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+
+    const allText = uniqueTexts.join("\n\n");
 
     let readbackText = allText;
     if (classification.entity && AI_API_KEY) {
@@ -178,7 +187,7 @@ export async function handleReadback(
       intent: "readback",
       action: "relecture",
       message: readbackText,
-      tts: readbackText.substring(0, 500),
+      tts: readbackText,
       data: { transcriptions_count: records.length },
       context: {
         lastIntent: "readback",

@@ -11,6 +11,8 @@ function generateId(): string {
 
 interface PhotoCaptureProps {
   dossierId?: string;
+  dossierNumero?: string;
+  dossierClient?: string;
 }
 
 type UploadStatus = "idle" | "uploading" | "done" | "error";
@@ -25,6 +27,8 @@ interface CapturedPhoto {
 
 export default function PhotoCapture({
   dossierId,
+  dossierNumero,
+  dossierClient,
 }: PhotoCaptureProps) {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [previewPhoto, setPreviewPhoto] = useState<CapturedPhoto | null>(null);
@@ -43,8 +47,10 @@ export default function PhotoCapture({
         const formData = new FormData();
         formData.append("photo", file, file.name || `photo_${Date.now()}.jpg`);
         formData.append("dossier_id", dossierId || "");
+        formData.append("dossier_numero", dossierNumero || "");
+        formData.append("dossier_client", dossierClient || "");
 
-        const res = await fetch("/api/save-photo", {
+        const res = await fetch("/api/photo-upload", {
           method: "POST",
           body: formData,
         });
