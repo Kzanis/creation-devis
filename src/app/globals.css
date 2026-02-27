@@ -1,9 +1,7 @@
 @import "tailwindcss";
 
-/* ──────────────────────────────────────────────────────────────
-   Design system — Assistant vocal de chantier (Dark theme)
-   Variables injectées par le ThemeProvider selon le client.
-   ────────────────────────────────────────────────────────────── */
+/* Design system - Assistant vocal de chantier (Dark theme)
+   Variables injectees par le ThemeProvider selon le client. */
 
 :root {
   --color-primary: #F59E0B;
