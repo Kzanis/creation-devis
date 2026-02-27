@@ -54,3 +54,9 @@ body {
 .animate-recording {
   animation: recording-pulse 1.5s ease-in-out infinite;
 }
+
+/* PWA install banner slide-up */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

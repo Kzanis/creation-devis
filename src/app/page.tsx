@@ -8,6 +8,7 @@ import PreDevis from "@/components/PreDevis";
 import AgentResponseCard from "@/components/AgentResponse";
 import SubAgentPanel from "@/components/SubAgentPanel";
 import DossierSelector, { type Dossier } from "@/components/DossierSelector";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { getClientConfig } from "@/lib/clientConfig";
 import type { AgentResponse } from "@/types/agent";
 
@@ -242,6 +243,9 @@ export default function Home() {
           </section>
         </div>
       </main>
+
+      {/* PWA Install Banner */}
+      <PWAInstallBanner />
 
       {/* FOOTER */}
       <footer className="border-t border-[var(--color-surface-border)] bg-[var(--color-surface)] px-4 py-3">
