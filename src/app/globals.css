@@ -1,9 +1,6 @@
-@import "tailwindcss";
-@source not "../../.claude/**";
-@source not "../../public/**";
-@source not "../../n8n-workflows-export/**";
-@source not "../../scripts/**";
-@source not "../../openspec/**";
+@import "tailwindcss" source(none);
+@source "../../src/**/*.tsx";
+@source "../../src/**/*.ts";
 
 /* Design system - Assistant vocal de chantier (Dark theme)
    Variables injectees par le ThemeProvider selon le client. */
