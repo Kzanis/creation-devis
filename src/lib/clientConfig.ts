@@ -21,6 +21,13 @@ export interface ClientColors {
   successLight: string;
 }
 
+export interface DossierFormat {
+  prefix: string;       // ex: "FH", "LB", "" (vide = pas de préfixe)
+  date_part: string;    // "YYYY" | "YYMM" | "YYYYMM" | "" (vide = pas de date)
+  separator: string;    // "-" | "/" | ""
+  padding: number;      // nombre de chiffres pour le compteur (3 = 001, 4 = 0001)
+}
+
 export interface ClientConfig {
   client_id: string;
   name: string;
@@ -30,6 +37,7 @@ export interface ClientConfig {
   airtable_base_id: string;
   api_token: string;
   n8n_base_url: string;
+  dossier_format?: DossierFormat;
 }
 
 import demoConfig from "@/config/clients/demo.json";

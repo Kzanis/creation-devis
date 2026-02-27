@@ -20,5 +20,11 @@
   "metier": "general",
   "airtable_base_id": "",
   "api_token": "",
-  "n8n_base_url": "https://creatorweb.fr/webhook"
+  "n8n_base_url": "https://creatorweb.fr/webhook",
+  "dossier_format": {
+    "prefix": "",
+    "date_part": "YYYY",
+    "separator": "-",
+    "padding": 3
+  }
 }

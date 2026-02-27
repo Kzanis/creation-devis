@@ -31,6 +31,18 @@ export default function DossierSelector({ onSelect, selected }: DossierSelectorP
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const fetchNextNumero = useCallback(async () => {
+    try {
+      const res = await fetch("/api/airtable/dossiers/next-numero");
+      const data = await res.json();
+      if (data.next_numero) {
+        setNewNumero(data.next_numero);
+      }
+    } catch {
+      // Silencieux — l'artisan peut taper manuellement
+    }
+  }, []);
+
   const handleCreate = async () => {
     if (!newNumero.trim() || !newClient.trim()) return;
     setCreating(true);
@@ -142,7 +154,7 @@ export default function DossierSelector({ onSelect, selected }: DossierSelectorP
                 type="text"
                 value={newNumero}
                 onChange={(e) => setNewNumero(e.target.value)}
-                placeholder="Numero (ex: 2025-004) *"
+                placeholder="Numero (auto) *"
                 className="w-full rounded-lg border border-[var(--color-surface-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
               />
               <input
@@ -178,7 +190,7 @@ export default function DossierSelector({ onSelect, selected }: DossierSelectorP
           ) : (
             <>
               <button
-                onClick={() => setShowCreate(true)}
+                onClick={() => { setShowCreate(true); fetchNextNumero(); }}
                 className="flex w-full items-center gap-2 border-b border-[var(--color-surface-border)] px-4 py-3 text-sm font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-light)]"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
