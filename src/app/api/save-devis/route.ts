@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 1) Generer le fichier Excel ──
+    // -- 1) Generer le fichier Excel --
     const rows: (string | number)[][] = [];
 
     rows.push(["PRE-DEVIS"]);
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       .replace(/\s+/g, "_")
       .replace(/[^a-zA-Z0-9_\-\.]/g, "");
 
-    // ── 2) Envoyer a n8n pour upload Google Drive (JSON + base64) ──
+    // -- 2) Envoyer a n8n pour upload Google Drive (JSON + base64) --
     let driveUrl: string | null = null;
 
     if (WEBHOOK_URL) {
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 3) Mettre a jour le Dossier Airtable avec le lien Drive ──
+    // -- 3) Mettre a jour le Dossier Airtable avec le lien Drive --
     if (driveUrl) {
       try {
         await fetch(

@@ -155,7 +155,7 @@ export default function PreDevis({ dossierId, dossierNumero, dossierClient }: Pr
     writeFileXLSX(wb, filename, { compression: true });
   }, [devis, dossierNumero, dossierClient]);
 
-  // ── Fonctions de modification du devis (calculette) ──
+  // -- Fonctions de modification du devis (calculette) --
 
   const recalcDevis = useCallback((d: Devis): Devis => {
     let totalGeneral = 0;

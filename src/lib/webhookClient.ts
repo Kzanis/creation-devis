@@ -9,7 +9,7 @@
 
 import { getClientConfig, getClientId } from "@/lib/clientConfig";
 
-// ── Headers communs ──
+// -- Headers communs --
 
 function getHeaders(): HeadersInit {
   const config = getClientConfig();
@@ -28,7 +28,7 @@ function getWebhookBase(): string {
   return config.n8n_base_url || process.env.NEXT_PUBLIC_WEBHOOK_N8N_BASE_URL || "https://creatorweb.fr/webhook";
 }
 
-// ── Types Dictation ──
+// -- Types Dictation --
 
 export interface DictationResponse {
   text: string;
@@ -71,7 +71,7 @@ export async function sendAudioForTranscription({
   return response.json() as Promise<DictationResponse>;
 }
 
-// ── Types Photo Upload ──
+// -- Types Photo Upload --
 
 export interface PhotoUploadResponse {
   success: boolean;

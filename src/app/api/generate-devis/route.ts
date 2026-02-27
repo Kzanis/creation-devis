@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 1) Charger les transcriptions du dossier ──
+    // -- 1) Charger les transcriptions du dossier --
     const transcriptionsRes = await fetch(
       `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Transcriptions?filterByFormula=${encodeURIComponent(`{Dossier ID}="${dossier_id}"`)}`,
       {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     const texteComplet = uniqueTexts.join("\n\n");
 
-    // ── 2) Charger le bordereau de prix ──
+    // -- 2) Charger le bordereau de prix --
     const bordereauRes = await fetch(
       `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Bordereau?sort[0][field]=Categorie&sort[0][direction]=asc`,
       {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       )
       .join("\n");
 
-    // ── 3) Appel au LLM ──
+    // -- 3) Appel au LLM --
     const systemPrompt = `Tu es un metreur specialise dans la generation de pre-devis pour artisans du batiment (peinture, revetements, second oeuvre).
 
 A partir d'une transcription de visite de chantier et d'un bordereau de prix, tu generes un pre-devis structure avec des QUANTITES CALCULEES.
@@ -244,7 +244,7 @@ Genere le pre-devis en JSON.`;
       );
     }
 
-    // ── 4) Forcer les prix du bordereau + recalculer tous les montants ──
+    // -- 4) Forcer les prix du bordereau + recalculer tous les montants --
     // Construire un index intitule -> prix reel du bordereau
     const prixBordereau = new Map<string, number>();
     for (const b of bordereau) {
@@ -273,7 +273,7 @@ Genere le pre-devis en JSON.`;
       totalGeneral += piece.sous_total_ht;
     }
 
-    // ── 5) Ajouter les prestations communes (1 ligne chacune, qte=1) ──
+    // -- 5) Ajouter les prestations communes (1 ligne chacune, qte=1) --
     if (prestationsCommunes.length > 0) {
       let sousTotalCommunes = 0;
       const lignesCommunes = prestationsCommunes.map(

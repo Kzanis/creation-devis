@@ -10,7 +10,7 @@ const N8N_READBACK_URL = process.env.WEBHOOK_N8N_AGENT_READBACK_URL;
 const N8N_CORRECTION_URL = process.env.WEBHOOK_N8N_AGENT_CORRECTION_URL;
 const N8N_INFO_URL = process.env.WEBHOOK_N8N_AGENT_INFO_URL;
 
-// ── Helper: call n8n webhook ────────────────────────────────────────
+// -- Helper: call n8n webhook ----------------------------------------
 
 async function callN8nWebhook(
   url: string,
@@ -43,7 +43,7 @@ async function callN8nWebhook(
   }
 }
 
-// ── DICTATION handler ──────────────────────────────────────────────
+// -- DICTATION handler ----------------------------------------------
 
 export async function handleDictation(
   text: string,
@@ -68,7 +68,7 @@ export async function handleDictation(
   };
 }
 
-// ── READBACK handler ───────────────────────────────────────────────
+// -- READBACK handler -----------------------------------------------
 
 export async function handleReadback(
   text: string,
@@ -209,7 +209,7 @@ export async function handleReadback(
   }
 }
 
-// ── CORRECTION handler ─────────────────────────────────────────────
+// -- CORRECTION handler ---------------------------------------------
 
 export async function handleCorrection(
   text: string,
@@ -324,7 +324,7 @@ export async function handleCorrection(
   }
 }
 
-// ── DEVIS handler ──────────────────────────────────────────────────
+// -- DEVIS handler --------------------------------------------------
 
 export async function handleDevis(
   text: string,
@@ -358,7 +358,7 @@ export async function handleDevis(
   };
 }
 
-// ── INFO handler ───────────────────────────────────────────────────
+// -- INFO handler ---------------------------------------------------
 
 export async function handleInfo(
   text: string,

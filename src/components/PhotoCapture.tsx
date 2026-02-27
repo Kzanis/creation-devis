@@ -34,7 +34,7 @@ export default function PhotoCapture({
   const [previewPhoto, setPreviewPhoto] = useState<CapturedPhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Upload une photo vers /api/save-photo ──
+  // -- Upload une photo vers /api/save-photo --
   const uploadPhoto = useCallback(
     async (photoId: string, file: File) => {
       setPhotos((prev) =>
@@ -85,7 +85,7 @@ export default function PhotoCapture({
     [dossierId]
   );
 
-  // ── Capture depuis camera ou galerie ──
+  // -- Capture depuis camera ou galerie --
   const handleCapture = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
@@ -114,13 +114,13 @@ export default function PhotoCapture({
     [uploadPhoto]
   );
 
-  // ── Supprimer une photo locale ──
+  // -- Supprimer une photo locale --
   const removePhoto = (id: string) => {
     setPhotos((prev) => prev.filter((p) => p.id !== id));
     if (previewPhoto?.id === id) setPreviewPhoto(null);
   };
 
-  // ── Retry upload ──
+  // -- Retry upload --
   const retryUpload = useCallback(
     (photoId: string) => {
       const photo = photos.find((p) => p.id === photoId);
