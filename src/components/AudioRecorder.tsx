@@ -159,7 +159,10 @@ export default function AudioRecorder({ onTranscription, dossierId, onAgentRespo
 
           if (agentData.intent === "dictation") {
             // Dictation: add to segments as before
-            onTranscription(agentData.message);
+            // Guard: never display raw JSON as a segment
+            const msg = agentData.message || "";
+            const isJson = msg.trimStart().startsWith("{") || msg.trimStart().startsWith("[");
+            onTranscription(isJson ? (agentData.tts || transcribedText) : msg);
           }
 
           // Always notify parent of agent response

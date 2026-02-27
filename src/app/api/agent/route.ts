@@ -66,13 +66,38 @@ async function tryN8nOrchestrator(
         return null;
       }
 
+      // Fix: n8n AI Agent sometimes returns the entire JSON response as the message string
+      let finalMessage = data.message;
+      let finalData = data.data || {};
+      let finalTts = data.tts;
+
+      if (finalMessage.startsWith("{") && finalMessage.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(finalMessage);
+          if (parsed && typeof parsed.intent === "string") {
+            // The message contains a nested JSON response — extract the real values
+            console.log("[Agent] n8n returned nested JSON in message, extracting inner values");
+            finalMessage = parsed.message || parsed.tts || "";
+            finalTts = parsed.tts || finalTts;
+            finalData = { ...finalData, ...(parsed.data || {}) };
+          }
+        } catch {
+          // Not valid JSON — keep original message
+        }
+      }
+
+      // Fix: if message is empty after parsing, fall back to tts or a default
+      if (!finalMessage.trim()) {
+        finalMessage = finalTts || data.tts || "Bien recu.";
+      }
+
       return {
         success: data.success ?? true,
         intent: data.intent,
         action: data.action || "n8n_agent",
-        message: data.message,
-        tts: data.tts || data.message.substring(0, 200),
-        data: data.data || {},
+        message: finalMessage,
+        tts: finalTts || finalMessage.substring(0, 200),
+        data: finalData,
         context: data.context || {
           lastIntent: data.intent,
           lastEntity: null,
